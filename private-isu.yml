@@ -1,0 +1,161 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: private-isu
+Parameters: 
+  InstanceCount:
+    Description: Number of EC2 instances (must be between 1 and 3).
+    Type: Number
+    Default: 1
+    MinValue: 1
+    MaxValue: 3
+    ConstraintDescription: Must be a number between 1 and 3.
+  EnvironmentName:
+    Type: String
+    Default: Isucon
+  ImageIdApp:
+    Description: ImageId App
+    Type: 'AWS::EC2::Image::Id'
+    Default: ami-0676c829e30e00846
+  ImageIdBench:
+    Description: ImageId Bench
+    Type: 'AWS::EC2::Image::Id'
+    Default: ami-0582a2a7fbe79a30d
+  InstanceTypeApp:
+    Description: InstanceType App
+    Type: String
+    Default: c6i.large
+  InstanceTypeBench:
+    Description: InstanceType Bench
+    Type: String
+    Default: c6i.xlarge
+  VolumeSize:
+    Description: Volume Size
+    Type: Number
+    Default: 50
+  VolumeType:
+    Description: Volume Type
+    Type: String
+    Default: gp3
+  Iops:
+    Description: IOPS
+    Type: Number
+    Default: 3000
+  Throughput:
+    Description: Throughput
+    Type: Number
+    Default: 250
+  KeyName:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the EC2 instance.
+    Type: 'AWS::EC2::KeyPair::KeyName'
+  SecurityGroupIds:
+    Description: SecurityGroup Ids
+    Type: List<AWS::EC2::SecurityGroup::Id>
+  SubnetId:
+    Description: Subnet Id
+    Type: 'AWS::EC2::Subnet::Id'
+
+Conditions:
+  Launch1: !Equals [1, 1]
+  Launch2: !Not [!Equals [1, !Ref InstanceCount]]
+  Launch3: !And
+  - !Not [!Equals [1, !Ref InstanceCount]]
+  - !Not [!Equals [2, !Ref InstanceCount]]
+  HasThroughput: !Equals ['gp3', !Ref VolumeType]
+
+Resources:
+  EC2LaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: !Sub ${EnvironmentName}-LaunchTemplate
+      LaunchTemplateData:
+        BlockDeviceMappings:
+          - DeviceName: /dev/xvda
+            Ebs: 
+              DeleteOnTermination: true
+              VolumeSize: !Ref VolumeSize
+              VolumeType: !Ref VolumeType
+              Iops: !Ref Iops
+              Throughput: !If [HasThroughput, !Ref Throughput, !Ref "AWS::NoValue"]
+        KeyName: !Ref KeyName
+        Monitoring: 
+          Enabled: true
+        SecurityGroupIds: !Ref SecurityGroupIds
+  App1:
+    Condition: Launch1
+    Type: AWS::EC2::Instance
+    Properties: 
+      LaunchTemplate:
+        LaunchTemplateId: !Ref EC2LaunchTemplate
+        Version: !GetAtt EC2LaunchTemplate.LatestVersionNumber
+      ImageId: !Ref ImageIdApp
+      InstanceType: !Ref InstanceTypeApp
+      SubnetId: !Ref SubnetId
+      Tags: 
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-App1
+        - Key: !Ref EnvironmentName
+          Value: !Sub ${EnvironmentName}-App1
+  App2:
+    Condition: Launch2
+    Type: AWS::EC2::Instance
+    Properties: 
+      LaunchTemplate:
+        LaunchTemplateId: !Ref EC2LaunchTemplate
+        Version: !GetAtt EC2LaunchTemplate.LatestVersionNumber
+      ImageId: !Ref ImageIdApp
+      InstanceType: !Ref InstanceTypeApp
+      SubnetId: !Ref SubnetId
+      Tags: 
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-App2
+        - Key: !Ref EnvironmentName
+          Value: !Sub ${EnvironmentName}-App2
+  App3:
+    Condition: Launch3
+    Type: AWS::EC2::Instance
+    Properties: 
+      LaunchTemplate:
+        LaunchTemplateId: !Ref EC2LaunchTemplate
+        Version: !GetAtt EC2LaunchTemplate.LatestVersionNumber
+      ImageId: !Ref ImageIdApp
+      InstanceType: !Ref InstanceTypeApp
+      SubnetId: !Ref SubnetId
+      Tags: 
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-App3
+        - Key: !Ref EnvironmentName
+          Value: !Sub ${EnvironmentName}-App3
+  Bench:
+    Type: AWS::EC2::Instance
+    Properties: 
+      LaunchTemplate:
+        LaunchTemplateId: !Ref EC2LaunchTemplate
+        Version: !GetAtt EC2LaunchTemplate.LatestVersionNumber
+      ImageId: !Ref ImageIdBench
+      InstanceType: !Ref InstanceTypeBench
+      SubnetId: !Ref SubnetId
+      Tags: 
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-Bench
+        - Key: !Ref EnvironmentName
+          Value: !Sub ${EnvironmentName}-Bench
+Outputs:
+  App1:
+    Value: !Ref App1
+  App1IP:
+    Value: !GetAtt App1.PublicIp
+  App2:
+    Condition: Launch2
+    Value: !Ref App2
+  App2IP:
+    Condition: Launch2
+    Value: !GetAtt App2.PublicIp
+  App3:
+    Condition: Launch3
+    Value: !Ref App3
+  App3IP:
+    Condition: Launch3
+    Value: !GetAtt App3.PublicIp
+  Bench:
+    Value: !Ref Bench
+  BenchIP:
+    Value: !GetAtt Bench.PublicIp
